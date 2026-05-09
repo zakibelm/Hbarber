@@ -47,6 +47,17 @@ export function useQueue(shopSlug) {
     let ticketSubscription;
 
     const fetchQueue = async () => {
+      // Force MOCK mode if no real Supabase URL is set
+      if (!supabase.supabaseUrl || supabase.supabaseUrl.includes('placeholder') || supabase.supabaseUrl.includes('xyz.supabase.co')) {
+        setState({
+          shop: { ...mockState.shop, slug: shopSlug },
+          tickets: [...mockState.tickets],
+          barbers: [...mockState.barbers],
+          loading: false,
+          error: null
+        });
+        return;
+      }
       try {
         // Fetch shop
         const { data: shop, error: shopError } = await supabase
