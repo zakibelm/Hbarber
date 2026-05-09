@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { HB, Eyebrow, TicketNum, Pill, HBButton } from '../design/atoms';
-import { useQueue, selectWaiting, selectCalled, selectServed, selectSkipped, updateMockBarber, addMockBarber } from '../store/useQueue';
+import { useQueue, selectWaiting, selectCalled, selectServed, selectSkipped, updateMockBarber, addMockBarber, deleteMockBarber, updateMockBarberName } from '../store/useQueue';
 import { supabase } from '../supabase';
 import { sendSMSTour } from '../utils/sms';
 
@@ -19,6 +19,8 @@ export default function AdminDashboard() {
   const { shopSlug } = useParams();
   const { shop, tickets, barbers, loading } = useQueue(shopSlug);
   const [newBarberName, setNewBarberName] = useState('');
+  const [editingBarber, setEditingBarber] = useState(null); // { id, name }
+  const [editName, setEditName] = useState('');
 
   const handleAction = async (ticketId, status) => {
     const ticket = tickets.find(t => t.id === ticketId);
@@ -55,6 +57,20 @@ export default function AdminDashboard() {
     if (shop?.id === 'mock-1') { addMockBarber(newBarberName.trim()); setNewBarberName(''); return; }
     await supabase.from('barbers').insert([{ shop_id: shop.id, name: newBarberName.trim(), is_active: true }]);
     setNewBarberName('');
+  };
+
+  const deleteBarber = async (id) => {
+    if (!confirm('Supprimer ce coiffeur ?')) return;
+    if (shop?.id === 'mock-1') { deleteMockBarber(id); return; }
+    await supabase.from('barbers').delete().eq('id', id);
+  };
+
+  const renameBarber = async (e) => {
+    e.preventDefault();
+    if (!editName.trim()) return;
+    if (shop?.id === 'mock-1') { updateMockBarberName(editingBarber.id, editName.trim()); setEditingBarber(null); return; }
+    await supabase.from('barbers').update({ name: editName.trim() }).eq('id', editingBarber.id);
+    setEditingBarber(null);
   };
 
   if (loading) return <div style={{ color: HB.bone, padding: 20 }}>Chargement...</div>;
@@ -194,10 +210,44 @@ export default function AdminDashboard() {
                 <Eyebrow style={{ marginBottom: 16 }}>COIFFEURS</Eyebrow>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {barbers?.map(b => (
-                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                    <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, group: 'true' }}>
                       <input type="checkbox" checked={b.is_active} onChange={() => toggleBarber(b.id, !b.is_active)} />
-                      <span style={{ fontSize: 14, color: b.is_active ? HB.bone : HB.mute }}>{b.name}</span>
-                    </label>
+                      
+                      {editingBarber?.id === b.id ? (
+                        <form onSubmit={renameBarber} style={{ flex: 1, display: 'flex', gap: 8 }}>
+                          <input 
+                            autoFocus
+                            value={editName} 
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={() => setEditingBarber(null)}
+                            style={{ background: HB.ink3, border: 'none', color: HB.bone, fontSize: 13, padding: '2px 8px', borderRadius: 4, width: '100%' }}
+                          />
+                        </form>
+                      ) : (
+                        <>
+                          <span 
+                            style={{ fontSize: 14, color: b.is_active ? HB.bone : HB.mute, flex: 1, cursor: 'pointer' }}
+                            onDoubleClick={() => { setEditingBarber(b); setEditName(b.name); }}
+                          >
+                            {b.name}
+                          </span>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button 
+                              onClick={() => { setEditingBarber(b); setEditName(b.name); }}
+                              style={{ background: 'none', border: 'none', color: HB.mute, fontSize: 10, cursor: 'pointer', padding: 4 }}
+                            >
+                              ÉDITER
+                            </button>
+                            <button 
+                              onClick={() => deleteBarber(b.id)}
+                              style={{ background: 'none', border: 'none', color: '#ff4444', fontSize: 10, cursor: 'pointer', padding: 4 }}
+                            >
+                              SUPPR.
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   ))}
                   <form onSubmit={addBarber} style={{ marginTop: 8 }}>
                     <input 

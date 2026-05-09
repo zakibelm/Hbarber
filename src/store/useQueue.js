@@ -27,6 +27,17 @@ export function updateMockBarber(id, isActive) {
   window.dispatchEvent(new Event('mock-update'));
 }
 
+export function deleteMockBarber(id) {
+  mockState.barbers = mockState.barbers.filter(x => x.id !== id);
+  window.dispatchEvent(new Event('mock-update'));
+}
+
+export function updateMockBarberName(id, name) {
+  const b = mockState.barbers.find(x => x.id === id);
+  if (b) b.name = name;
+  window.dispatchEvent(new Event('mock-update'));
+}
+
 export function addMockBarber(name) {
   mockState.barbers.push({ id: 'b' + Date.now(), name, is_active: true });
   window.dispatchEvent(new Event('mock-update'));
