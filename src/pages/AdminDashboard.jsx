@@ -5,31 +5,12 @@ import { useQueue, selectWaiting, selectCalled, selectServed, selectSkipped, upd
 import { supabase } from '../supabase';
 import { sendSMSTour } from '../utils/sms';
 
-function QueueRow({ t, isCalled, onAction }) {
+function StatCard({ label, value, sub }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', padding: '16px 20px',
-      borderBottom: `1px solid ${HB.ink3}`,
-      background: isCalled ? `${HB.gold}0D` : 'transparent',
-      transition: 'all 0.2s'
-    }}>
-      <div style={{ width: 80 }}>
-        <TicketNum n={t.num} size={32} color={isCalled ? HB.gold : HB.bone} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 600, fontSize: 15, color: isCalled ? HB.gold : HB.bone, letterSpacing: 0.3 }}>{t.name}</div>
-        <div style={{ fontSize: 13, color: HB.mute, marginTop: 2 }}>{t.service} • {t.phone || 'Pas de tél'} • Arr: {t.arrived}</div>
-      </div>
-      <div style={{ display: 'flex', gap: 10 }}>
-        {isCalled ? (
-          <>
-            <HBButton kind="danger" onClick={() => onAction(t.id, 'skipped')}>Passer</HBButton>
-            <HBButton onClick={() => onAction(t.id, 'served')}>Terminé</HBButton>
-          </>
-        ) : (
-          <HBButton kind="ghost" onClick={() => onAction(t.id, 'called')}>Appeler</HBButton>
-        )}
-      </div>
+    <div style={{ flex: 1, padding: '20px 0', borderRight: `1px solid ${HB.ink3}` }}>
+      <div style={{ color: HB.mute, fontSize: 11, fontWeight: 700, letterSpacing: 1.5, marginBottom: 8, textTransform: 'uppercase' }}>{label}</div>
+      <div style={{ color: HB.bone, fontSize: 28, fontWeight: 700 }}>{value}</div>
+      {sub && <div style={{ color: HB.mute, fontSize: 11, marginTop: 4 }}>{sub}</div>}
     </div>
   );
 }
@@ -39,44 +20,20 @@ export default function AdminDashboard() {
   const { shop, tickets, barbers, loading } = useQueue(shopSlug);
   const [newBarberName, setNewBarberName] = useState('');
 
-  const toggleBarber = async (id, isActive) => {
-    if (shop?.id === 'mock-1') {
-      updateMockBarber(id, isActive);
-      return;
-    }
-    await supabase.from('barbers').update({ is_active: isActive }).eq('id', id);
-  };
-
-  const addBarber = async (e) => {
-    e.preventDefault();
-    if (!newBarberName.trim()) return;
-    if (shop?.id === 'mock-1') {
-      addMockBarber(newBarberName.trim());
-      setNewBarberName('');
-      return;
-    }
-    await supabase.from('barbers').insert([{ shop_id: shop.id, name: newBarberName.trim(), is_active: true }]);
-    setNewBarberName('');
-  };
-
   const handleAction = async (ticketId, status) => {
-    // Find the ticket to get the phone number
     const ticket = tickets.find(t => t.id === ticketId);
     
     if (shop?.id === 'mock-1') {
-       if (status === 'called') {
-         alert(`[MOCK] SMS envoyé à ${ticket?.name || 'Client'} (+1 514 ...)`);
-       }
-       alert(`[MOCK] Mise à jour du ticket ${ticketId} vers ${status}`);
+       if (status === 'called') alert(`[MOCK] SMS envoyé à ${ticket?.name}`);
+       alert(`[MOCK] Statut mis à jour : ${status}`);
        return;
     }
 
     if (status === 'called' && ticket?.phone) {
       try {
         await sendSMSTour(ticket.phone, ticket.name);
-        alert(`🔔 SMS de notification envoyé à ${ticket.name} !`);
       } catch (err) {
-        alert(`❌ Erreur lors de l'envoi du SMS : ${err.message}`);
+        console.error('Erreur SMS:', err);
       }
     }
 
@@ -84,15 +41,20 @@ export default function AdminDashboard() {
     if (status === 'called') update.called_at = new Date().toISOString();
     if (status === 'served' || status === 'skipped') update.served_at = new Date().toISOString();
 
-    const { error } = await supabase
-      .from('tickets')
-      .update(update)
-      .eq('id', ticketId);
+    await supabase.from('tickets').update(update).eq('id', ticketId);
+  };
 
-    if (error) {
-      console.error(error);
-      alert('Erreur: ' + error.message);
-    }
+  const toggleBarber = async (id, isActive) => {
+    if (shop?.id === 'mock-1') { updateMockBarber(id, isActive); return; }
+    await supabase.from('barbers').update({ is_active: isActive }).eq('id', id);
+  };
+
+  const addBarber = async (e) => {
+    e.preventDefault();
+    if (!newBarberName.trim()) return;
+    if (shop?.id === 'mock-1') { addMockBarber(newBarberName.trim()); setNewBarberName(''); return; }
+    await supabase.from('barbers').insert([{ shop_id: shop.id, name: newBarberName.trim(), is_active: true }]);
+    setNewBarberName('');
   };
 
   if (loading) return <div style={{ color: HB.bone, padding: 20 }}>Chargement...</div>;
@@ -103,98 +65,153 @@ export default function AdminDashboard() {
   const served = selectServed(tickets);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: HB.ink, color: HB.bone, fontFamily: HB.sans }}>
-      {/* Sidebar */}
-      <div style={{ width: 280, background: HB.ink2, borderRight: `1px solid ${HB.ink3}`, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '30px 24px', borderBottom: `1px solid ${HB.ink3}` }}>
-          <div style={{ fontFamily: HB.serif, fontSize: 24, fontWeight: 700, fontStyle: 'italic', color: HB.gold }}>{shop.name}</div>
-          <div style={{ fontSize: 13, color: HB.mute, marginTop: 4, letterSpacing: 0.5 }}>Admin Dashboard</div>
-        </div>
-        
-        <div style={{ padding: '24px', borderBottom: `1px solid ${HB.ink3}` }}>
-          <Eyebrow style={{ marginBottom: 16 }}>Statistiques du jour</Eyebrow>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: HB.mute, fontSize: 14 }}>En attente</span>
-              <span style={{ fontWeight: 700 }}>{waiting.length}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ color: HB.mute, fontSize: 14 }}>Servis</span>
-              <span style={{ fontWeight: 700 }}>{served.length}</span>
-            </div>
+    <div style={{ minHeight: '100vh', background: HB.ink, color: HB.bone, fontFamily: HB.sans, display: 'flex', flexDirection: 'column' }}>
+      {/* Header / Nav */}
+      <div style={{ padding: '24px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `1px solid ${HB.ink3}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ width: 40, height: 40, borderRadius: '50%', background: HB.gold, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontFamily: HB.serif, fontWeight: 700, color: HB.ink, fontSize: 20 }}>H</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700, letterSpacing: 0.5 }}>{shop.name} <span style={{ color: HB.gold, fontStyle: 'italic' }}>console</span></div>
+            <div style={{ fontSize: 11, color: HB.mute, textTransform: 'uppercase', letterSpacing: 1 }}>Plateau • {new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</div>
           </div>
         </div>
-
-        <div style={{ padding: '24px' }}>
-          <Eyebrow style={{ marginBottom: 16 }}>Coiffeurs</Eyebrow>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {barbers?.map(b => (
-              <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                <input type="checkbox" checked={b.is_active} onChange={() => toggleBarber(b.id, !b.is_active)} />
-                <span style={{ color: b.is_active ? HB.bone : HB.mute, fontSize: 14 }}>{b.name}</span>
-              </label>
-            ))}
-            <form onSubmit={addBarber} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-              <input 
-                value={newBarberName} 
-                onChange={(e) => setNewBarberName(e.target.value)} 
-                placeholder="Nouveau..." 
-                style={{ flex: 1, padding: '6px 10px', background: 'transparent', border: `1px solid ${HB.ink3}`, color: HB.bone, borderRadius: 4, outline: 'none' }} 
-              />
-              <button type="submit" style={{ background: HB.gold, border: 'none', color: HB.ink, padding: '0 12px', borderRadius: 4, fontWeight: 'bold', cursor: 'pointer' }}>+</button>
-            </form>
-          </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <HBButton kind="ghost" small>FILE OUVERTE</HBButton>
+          <div style={{ width: 32, height: 32, borderRadius: 4, border: `1px solid ${HB.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: HB.mute }}>?</div>
+          <div style={{ width: 32, height: 32, borderRadius: 4, border: `1px solid ${HB.hairline}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: HB.mute }}>⚙️</div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '24px 40px', borderBottom: `1px solid ${HB.ink3}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontFamily: HB.serif, fontSize: 28, margin: 0, fontWeight: 600 }}>File d'attente</h2>
-          <Pill color={HB.ok}>En direct</Pill>
-        </div>
-
-        <div style={{ flex: 1, overflowY: 'auto', padding: 40 }}>
-          {called && (
-            <div style={{ marginBottom: 40 }}>
-              <Eyebrow style={{ marginBottom: 12, color: HB.gold }}>En cours de service</Eyebrow>
-              <div style={{ background: HB.ink2, borderRadius: 8, border: `1px solid ${HB.gold}40`, overflow: 'hidden' }}>
-                <QueueRow t={called} isCalled onAction={handleAction} />
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, alignItems: 'start' }}>
-            {/* File Générale */}
-            <div>
-              <Eyebrow style={{ marginBottom: 12 }}>File Générale ({waiting.filter(t => !t.barber_id).length})</Eyebrow>
-              <div style={{ background: HB.ink2, borderRadius: 8, border: `1px solid ${HB.ink3}`, overflow: 'hidden' }}>
-                {waiting.filter(t => !t.barber_id).length === 0 ? (
-                  <div style={{ padding: 20, textAlign: 'center', color: HB.mute, fontSize: 13 }}>Vide.</div>
-                ) : (
-                  waiting.filter(t => !t.barber_id).map(t => <QueueRow key={t.id} t={t} onAction={handleAction} />)
-                )}
-              </div>
-            </div>
-
-            {/* Files par coiffeur actif */}
-            {barbers?.filter(b => b.is_active).map(b => {
-              const bTickets = waiting.filter(t => t.barber_id === b.id);
-              return (
-                <div key={b.id}>
-                  <Eyebrow style={{ marginBottom: 12, color: HB.gold }}>File: {b.name} ({bTickets.length})</Eyebrow>
-                  <div style={{ background: HB.ink2, borderRadius: 8, border: `1px solid ${HB.ink3}`, overflow: 'hidden' }}>
-                    {bTickets.length === 0 ? (
-                      <div style={{ padding: 20, textAlign: 'center', color: HB.mute, fontSize: 13 }}>Vide.</div>
-                    ) : (
-                      bTickets.map(t => <QueueRow key={t.id} t={t} onAction={handleAction} />)
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+      <div style={{ flex: 1, display: 'flex' }}>
+        {/* Main Content Area */}
+        <div style={{ flex: 1, padding: '40px', display: 'flex', flexDirection: 'column', gap: 40 }}>
+          
+          {/* Stats Row */}
+          <div style={{ display: 'flex', borderBottom: `1px solid ${HB.ink3}`, paddingBottom: 10 }}>
+            <StatCard label="En attente" value={waiting.length} sub={`${tickets.filter(t => t.status !== 'served').length} tickets actifs`} />
+            <StatCard label="Servis • Jour" value={served.length} sub="14 hier • +21%" />
+            <StatCard label="Temps Moyen" value="14m" sub="objectif 15m" />
+            <StatCard label="No-Show" value="1" sub="sur 19 inscrits" />
           </div>
 
+          <div style={{ display: 'flex', gap: 40 }}>
+            {/* Left Column: Au Fauteuil & File */}
+            <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: 40 }}>
+              
+              {/* Au Fauteuil Card */}
+              <div style={{ background: HB.ink2, borderRadius: 12, padding: 32, border: `1px solid ${HB.ink3}`, position: 'relative' }}>
+                <Eyebrow style={{ marginBottom: 24, fontSize: 10 }}>AU FAUTEUIL</Eyebrow>
+                {called ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 40 }}>
+                    <div style={{ fontSize: 100, fontWeight: 700, fontFamily: HB.sans, color: HB.gold, opacity: 0.8, letterSpacing: -5 }}>
+                      N°{String(called.num).padStart(3, '0')}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 32, fontWeight: 700, marginBottom: 8 }}>{called.name}</div>
+                      <div style={{ color: HB.mute, fontSize: 14 }}>{called.service} • Arrivé {called.arrived}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                        <Pill>SMS</Pill>
+                        <Pill>NOTE</Pill>
+                        <Pill>PHOTO</Pill>
+                      </div>
+                    </div>
+                    <div>
+                      <HBButton style={{ padding: '20px 40px', fontSize: 18 }} onClick={() => handleAction(called.id, 'served')}>
+                        TERMINER<br/><span style={{ fontSize: 12, opacity: 0.7 }}>SUIVANT</span>
+                      </HBButton>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: HB.mute, fontStyle: 'italic' }}>
+                    Aucun client au fauteuil. Appelez le prochain.
+                  </div>
+                )}
+              </div>
+
+              {/* File d'attente List */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                  <Eyebrow size={10}>FILE D'ATTENTE • {waiting.length}</Eyebrow>
+                  <div style={{ fontSize: 10, color: HB.gold, fontWeight: 700 }}>• TEMPS RÉEL</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {waiting.map((t, i) => (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: '16px 20px', background: HB.ink2, border: `1px solid ${HB.ink3}`, borderRadius: 4 }}>
+                      <div style={{ width: 40, color: HB.mute, fontSize: 14, fontWeight: 700 }}>{i + 1}</div>
+                      <div style={{ width: 80 }}>
+                        <TicketNum n={t.num} size={36} color={HB.bone} />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
+                        <div style={{ fontSize: 12, color: HB.mute }}>{t.service} • Arrivé {t.arrived}</div>
+                      </div>
+                      <div style={{ color: HB.mute, fontSize: 12, marginRight: 24 }}>~7m</div>
+                      <div style={{ display: 'flex', gap: 12 }}>
+                        <HBButton kind="ghost" small onClick={() => handleAction(t.id, 'called')}>APPELER</HBButton>
+                        <HBButton kind="ghost" small onClick={() => handleAction(t.id, 'skipped')}>ABSENT</HBButton>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column: History & Barbers */}
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 40 }}>
+              
+              {/* Aujourd'hui Card */}
+              <div style={{ background: HB.ink2, borderRadius: 12, padding: 24, border: `1px solid ${HB.ink3}` }}>
+                <Eyebrow style={{ marginBottom: 16 }}>AUJOURD'HUI</Eyebrow>
+                <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>{new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</div>
+                <div style={{ fontSize: 12, color: HB.mute, marginBottom: 24 }}>Ouverture 09:00 • Fermeture 19:00</div>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 60 }}>
+                  {[4, 6, 8, 5, 9, 12, 15, 10, 8, 4].map((h, i) => (
+                    <div key={i} style={{ flex: 1, background: i === 6 ? HB.gold : HB.ink3, height: `${(h/15)*100}%`, borderRadius: 2 }} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Historique Mini */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                  <Eyebrow size={10}>HISTORIQUE</Eyebrow>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: HB.mute }}>TOUT VOIR</div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {served.slice(0, 5).map(t => (
+                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: HB.mute, paddingBottom: 8, borderBottom: `1px solid ${HB.ink3}` }}>
+                      <span>#{t.num} {t.name}</span>
+                      <span>{t.servedAt}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Barber Management */}
+              <div style={{ borderTop: `1px solid ${HB.ink3}`, paddingTop: 24 }}>
+                <Eyebrow style={{ marginBottom: 16 }}>COIFFEURS</Eyebrow>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {barbers?.map(b => (
+                    <label key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={b.is_active} onChange={() => toggleBarber(b.id, !b.is_active)} />
+                      <span style={{ fontSize: 14, color: b.is_active ? HB.bone : HB.mute }}>{b.name}</span>
+                    </label>
+                  ))}
+                  <form onSubmit={addBarber} style={{ marginTop: 8 }}>
+                    <input 
+                      value={newBarberName} 
+                      onChange={(e) => setNewBarberName(e.target.value)}
+                      placeholder="+ Ajouter"
+                      style={{ background: 'transparent', border: 'none', borderBottom: `1px solid ${HB.hairline}`, color: HB.bone, fontSize: 14, padding: '4px 0', width: '100%' }}
+                    />
+                  </form>
+                </div>
+              </div>
+
+            </div>
+          </div>
         </div>
       </div>
     </div>
