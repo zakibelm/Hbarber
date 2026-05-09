@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { HB, Eyebrow, TicketNum, Pill, HBButton } from '../design/atoms';
-import { useQueue, selectWaiting, selectCalled, selectServed, selectSkipped, updateMockBarber, addMockBarber, deleteMockBarber, updateMockBarberName } from '../store/useQueue';
-import { supabase } from '../supabase';
-import { sendSMSTour } from '../utils/sms';
+import { useQueue, selectWaiting, selectCalled, selectServed, selectSkipped } from '../store/useQueue';
+import { api } from '../api';
 
 function StatCard({ label, value, sub }) {
   return (
@@ -23,54 +22,50 @@ export default function AdminDashboard() {
   const [editName, setEditName] = useState('');
 
   const handleAction = async (ticketId, status) => {
-    const ticket = tickets.find(t => t.id === ticketId);
-    
-    if (shop?.id === 'mock-1') {
-       if (status === 'called') alert(`[MOCK] SMS envoyé à ${ticket?.name}`);
-       alert(`[MOCK] Statut mis à jour : ${status}`);
-       return;
+    try {
+      await api.patch(`/api/tickets/${ticketId}`, { status });
+    } catch (err) {
+      console.error('Action error:', err);
     }
-
-    if (status === 'called' && ticket?.phone) {
-      try {
-        await sendSMSTour(ticket.phone, ticket.name);
-      } catch (err) {
-        console.error('Erreur SMS:', err);
-      }
-    }
-
-    const update = { status };
-    if (status === 'called') update.called_at = new Date().toISOString();
-    if (status === 'served' || status === 'skipped') update.served_at = new Date().toISOString();
-
-    await supabase.from('tickets').update(update).eq('id', ticketId);
   };
 
   const toggleBarber = async (id, isActive) => {
-    if (shop?.id === 'mock-1') { updateMockBarber(id, isActive); return; }
-    await supabase.from('barbers').update({ is_active: isActive }).eq('id', id);
+    try {
+      await api.patch(`/api/barbers/${id}`, { is_active: isActive });
+    } catch (err) {
+      console.error('Toggle barber error:', err);
+    }
   };
 
   const addBarber = async (e) => {
     e.preventDefault();
     if (!newBarberName.trim()) return;
-    if (shop?.id === 'mock-1') { addMockBarber(newBarberName.trim()); setNewBarberName(''); return; }
-    await supabase.from('barbers').insert([{ shop_id: shop.id, name: newBarberName.trim(), is_active: true }]);
-    setNewBarberName('');
+    try {
+      await api.post('/api/barbers', { shopId: shop.id, name: newBarberName.trim() });
+      setNewBarberName('');
+    } catch (err) {
+      console.error('Add barber error:', err);
+    }
   };
 
   const deleteBarber = async (id) => {
     if (!confirm('Supprimer ce coiffeur ?')) return;
-    if (shop?.id === 'mock-1') { deleteMockBarber(id); return; }
-    await supabase.from('barbers').delete().eq('id', id);
+    try {
+      await api.delete(`/api/barbers/${id}`);
+    } catch (err) {
+      console.error('Delete barber error:', err);
+    }
   };
 
   const renameBarber = async (e) => {
     e.preventDefault();
     if (!editName.trim()) return;
-    if (shop?.id === 'mock-1') { updateMockBarberName(editingBarber.id, editName.trim()); setEditingBarber(null); return; }
-    await supabase.from('barbers').update({ name: editName.trim() }).eq('id', editingBarber.id);
-    setEditingBarber(null);
+    try {
+      await api.patch(`/api/barbers/${editingBarber.id}`, { name: editName.trim() });
+      setEditingBarber(null);
+    } catch (err) {
+      console.error('Rename barber error:', err);
+    }
   };
 
   if (loading) return <div style={{ color: HB.bone, padding: 20 }}>Chargement...</div>;

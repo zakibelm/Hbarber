@@ -1,47 +1,11 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../supabase';
+import { api, socket } from '../api';
 
 // Helper to format HH:MM
 const formatTime = (date) => {
   if (!date) return '';
   return new Date(date).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
 };
-
-// Global mock state for demonstration without database
-export const mockState = {
-  shop: { id: 'mock-1', name: 'H Barber Shop', slug: 'h-barber-mtl', avg_service_min: 15, is_open: true, phone: '514 583-4712' },
-  tickets: [
-    { id: 't1', num: 41, name: 'Julien R.', status: 'called', arrived: '14:01', calledAt: '14:23', service: 'Coupe', barber_id: 'b1' },
-    { id: 't2', num: 42, name: 'Marcus T.', status: 'waiting', arrived: '14:10', service: 'Coupe + barbe', barber_id: null },
-  ],
-  barbers: [
-    { id: 'b1', name: 'Zaki', is_active: true },
-    { id: 'b2', name: 'Hamza', is_active: true },
-    { id: 'b3', name: 'Karim', is_active: false }
-  ]
-};
-
-export function updateMockBarber(id, isActive) {
-  const b = mockState.barbers.find(x => x.id === id);
-  if (b) b.is_active = isActive;
-  window.dispatchEvent(new Event('mock-update'));
-}
-
-export function deleteMockBarber(id) {
-  mockState.barbers = mockState.barbers.filter(x => x.id !== id);
-  window.dispatchEvent(new Event('mock-update'));
-}
-
-export function updateMockBarberName(id, name) {
-  const b = mockState.barbers.find(x => x.id === id);
-  if (b) b.name = name;
-  window.dispatchEvent(new Event('mock-update'));
-}
-
-export function addMockBarber(name) {
-  mockState.barbers.push({ id: 'b' + Date.now(), name, is_active: true });
-  window.dispatchEvent(new Event('mock-update'));
-}
 
 export function useQueue(shopSlug) {
   const [state, setState] = useState({
@@ -55,51 +19,16 @@ export function useQueue(shopSlug) {
   useEffect(() => {
     if (!shopSlug) return;
 
-    let ticketSubscription;
-
     const fetchQueue = async () => {
-      // Force MOCK mode if no real Supabase URL is set
-      if (!supabase.supabaseUrl || supabase.supabaseUrl.includes('placeholder') || supabase.supabaseUrl.includes('xyz.supabase.co')) {
-        setState({
-          shop: { ...mockState.shop, slug: shopSlug },
-          tickets: [...mockState.tickets],
-          barbers: [...mockState.barbers],
-          loading: false,
-          error: null
-        });
-        return;
-      }
       try {
         // Fetch shop
-        const { data: shop, error: shopError } = await supabase
-          .from('shops')
-          .select('*')
-          .eq('slug', shopSlug)
-          .single();
-
-        if (shopError) throw shopError;
-
+        const { data: shop } = await api.get(`/api/shops/${shopSlug}`);
+        
         // Fetch today's tickets
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const { data: tickets, error: ticketsError } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('shop_id', shop.id)
-          .gte('arrived_at', today.toISOString())
-          .order('num', { ascending: true });
-
-        if (ticketsError) throw ticketsError;
+        const { data: tickets } = await api.get(`/api/tickets/${shop.id}`);
 
         // Fetch barbers
-        const { data: barbers, error: barbersError } = await supabase
-          .from('barbers')
-          .select('*')
-          .eq('shop_id', shop.id)
-          .order('name', { ascending: true });
-
-        if (barbersError) throw barbersError;
+        const { data: barbers } = await api.get(`/api/barbers/${shop.id}`);
 
         const formattedTickets = tickets.map(t => ({
           ...t,
@@ -110,62 +39,24 @@ export function useQueue(shopSlug) {
 
         setState({ shop, tickets: formattedTickets, barbers, loading: false, error: null });
 
-        // Subscribe to real-time changes
-        ticketSubscription = supabase
-          .channel('public:tickets')
-          .on('postgres_changes', { 
-            event: '*', 
-            schema: 'public', 
-            table: 'tickets',
-            filter: `shop_id=eq.${shop.id}` 
-          }, payload => {
-            // Re-fetch to keep it simple and ensure correct order/formatting
-            // In a highly optimized app, we'd patch the local state here
-            fetchQueue();
-          })
-          .subscribe();
-
-        const barberSubscription = supabase
-          .channel('public:barbers')
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'barbers',
-            filter: `shop_id=eq.${shop.id}`
-          }, payload => {
-            fetchQueue();
-          })
-          .subscribe();
-
-        // Assign to a ref or just keep track to unsubscribe
-        ticketSubscription = [ticketSubscription, barberSubscription];
-
       } catch (error) {
-        // Fallback to mock data if DB isn't set up yet for demonstration purposes
         console.error('Error fetching queue:', error);
-        setState({
-          shop: { ...mockState.shop, slug: shopSlug },
-          tickets: [...mockState.tickets],
-          barbers: [...mockState.barbers],
-          loading: false,
-          error: null
-        });
+        setState(s => ({ ...s, loading: false, error: 'Erreur de connexion au serveur' }));
       }
     };
 
     fetchQueue();
-    
-    window.addEventListener('mock-update', fetchQueue);
+
+    // Socket.io Realtime update
+    socket.on('queue-update', (data) => {
+      // Check if update is for our shop
+      // if (state.shop && data.shopId === state.shop.id) {
+        fetchQueue();
+      // }
+    });
 
     return () => {
-      window.removeEventListener('mock-update', fetchQueue);
-      if (ticketSubscription) {
-        if (Array.isArray(ticketSubscription)) {
-          ticketSubscription.forEach(sub => supabase.removeChannel(sub));
-        } else {
-          supabase.removeChannel(ticketSubscription);
-        }
-      }
+      socket.off('queue-update');
     };
   }, [shopSlug]);
 

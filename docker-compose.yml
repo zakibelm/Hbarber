@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./server
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./server/data:/app/data
+    environment:
+      - DATABASE_PATH=/app/data/hbarber.sqlite
+      - PORT=3001
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+    restart: always
+
+  frontend:
+    build: .
+    ports:
+      - "5174:5174"
+    environment:
+      - VITE_API_URL=http://localhost:3001
+    depends_on:
+      - backend
+    restart: always

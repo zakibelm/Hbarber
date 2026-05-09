@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { HB, Eyebrow, Pill, HBButton } from '../design/atoms';
 import { useQueue, selectWaiting, selectCalled } from '../store/useQueue';
-import { supabase } from '../supabase';
+import { api } from '../api';
 
 export function ShopChip({ small, name, slug }) {
   return (
@@ -69,26 +69,14 @@ export default function JoinPage() {
     setIsSubmitting(true);
     
     try {
-      if (shop?.id === 'mock-1') {
-        // Mock fallback mode
-        setTimeout(() => navigate(`/${shopSlug}/ticket/mock-tnew`), 500);
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('tickets')
-        .insert([{ 
-          shop_id: shop.id,
-          name, 
-          phone, 
-          service,
-          barber_id: barberId,
-          status: 'waiting'
-        }])
-        .select()
-        .single();
+      const { data } = await api.post('/api/tickets', { 
+        shopId: shop.id,
+        name, 
+        phone, 
+        service,
+        barberId
+      });
         
-      if (error) throw error;
       navigate(`/${shopSlug}/ticket/${data.id}`);
       
     } catch (err) {
@@ -146,11 +134,11 @@ export default function JoinPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, margin: '24px 0 22px' }} className="animate-slide-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+        <div style={{ display: 'flex', gap: 10, margin: '24px 0 22px' }} className="animate-slide-up">
           {[
             { label: 'En attente', val: waiting.length },
             { label: 'Attente est.', val: `~${eta}m` },
-            { label: 'Barbiers', val: '2' },
+            { label: 'Barbiers', val: activeBarbers.length },
           ].map((m, i) => (
             <div key={i} style={{
               flex: 1, padding: '12px 12px 10px',
@@ -162,7 +150,7 @@ export default function JoinPage() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} className="animate-slide-up" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} className="animate-slide-up">
           <Field label="Votre nom" value={name} onChange={setName} />
           <Field label="Téléphone" value={phone} onChange={setPhone} hint="Notif SMS quand c'est votre tour" />
           <div>
