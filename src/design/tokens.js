@@ -1,0 +1,17 @@
+export const HB = {
+  ink:      '#0E0C0A',
+  ink2:     '#181410',
+  ink3:     '#221C16',
+  hairline: 'rgba(212,178,108,0.18)',
+  bone:     '#F2EDE3',
+  bone2:    '#E8DFCB',
+  mute:     '#8A8170',
+  gold:     '#D4B26C',
+  goldLo:   '#A8884B',
+  goldHi:   '#EBCE92',
+  ember:    '#C0763B',
+  ok:       '#7BA86E',
+  serif:    "'Bodoni Moda', 'Playfair Display', Georgia, serif",
+  sans:     "'Manrope', 'Inter', -apple-system, sans-serif",
+  mono:     "'JetBrains Mono', ui-monospace, monospace",
+};

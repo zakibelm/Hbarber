@@ -1,0 +1,49 @@
+html, body, #root { 
+  margin: 0; 
+  padding: 0; 
+  height: 100%; 
+  background: #0E0C0A; 
+}
+
+body { 
+  font-family: 'Manrope', system-ui, sans-serif; 
+  color: #F2EDE3; 
+}
+
+button { 
+  font-family: inherit; 
+}
+
+*::selection { 
+  background: #D4B26C; 
+  color: #0E0C0A; 
+}
+
+input {
+  box-sizing: border-box;
+}
+
+/* Scrollbar hiding for a cleaner look */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
