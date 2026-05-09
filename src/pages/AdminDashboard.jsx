@@ -155,13 +155,13 @@ export default function AdminDashboard() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                   {waiting.map((t, i) => (
                     <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: '16px 20px', background: HB.ink2, border: `1px solid ${HB.ink3}`, borderRadius: 4 }}>
-                      <div style={{ width: 40, color: HB.mute, fontSize: 14, fontWeight: 700 }}>{i + 1}</div>
-                      <div style={{ width: 80 }}>
-                        <TicketNum n={t.num} size={36} color={HB.bone} />
+                      <div style={{ width: 30, color: HB.mute, fontSize: 11, fontWeight: 700, opacity: 0.5 }}>{String(i + 1).padStart(2, '0')}</div>
+                      <div style={{ width: 110, display: 'flex', alignItems: 'center' }}>
+                        <TicketNum n={t.num} size={32} color={HB.bone} />
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>{t.name}</div>
-                        <div style={{ fontSize: 12, color: HB.mute }}>{t.service} • Arrivé {t.arrived}</div>
+                      <div style={{ flex: 1, marginLeft: 20 }}>
+                        <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: 0.5 }}>{t.name}</div>
+                        <div style={{ fontSize: 12, color: HB.mute, marginTop: 2 }}>{t.service} • Arrivé {t.arrived}</div>
                       </div>
                       <div style={{ color: HB.mute, fontSize: 12, marginRight: 24 }}>~7m</div>
                       <div style={{ display: 'flex', gap: 12 }}>
